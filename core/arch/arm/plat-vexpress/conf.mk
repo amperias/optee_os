@@ -25,6 +25,8 @@ include core/arch/arm/cpu/cortex-armv8-0.mk
 CFG_ARM64_core ?= y
 endif
 
+# Must be activated to use the pta.
+CFG_BOOT_DATA_PTA ?=y
 
 ifeq ($(platform-debugger-arm),1)
 # ARM debugger needs this
