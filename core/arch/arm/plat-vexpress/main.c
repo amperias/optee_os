@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <trace.h>
+#include <bootdata/bootdata.h>
 
 static struct gic_data gic_data __nex_bss;
 static struct pl011_data console_data __nex_bss;
@@ -84,6 +85,8 @@ void console_init(void)
 	pl011_init(&console_data, CONSOLE_UART_BASE, CONSOLE_UART_CLK_IN_HZ,
 		   CONSOLE_BAUDRATE);
 	register_serial_console(&console_data.chip);
+
+	boot_data_init(CFG_TEE_BOOT_DATA_START, CFG_TEE_BOOT_DATA_SIZE);
 }
 
 #if defined(IT_CONSOLE_UART) && !defined(CFG_VIRTUALIZATION) && \

@@ -1,4 +1,7 @@
 global-incdirs-y += .
+ifeq ($(PLATFORM_FLAVOR_qemu_virt),y)
+subdirs-$(CFG_BOOT_DATA_PTA) += bootdata
+endif
 srcs-y += main.c
 ifeq ($(PLATFORM_FLAVOR_juno),y)
 srcs-$(CFG_ARM32_core) += juno_core_pos_a32.S

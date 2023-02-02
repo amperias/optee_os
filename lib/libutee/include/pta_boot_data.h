@@ -16,4 +16,12 @@
 
 #define PTA_BOOT_DATA_DEVICE_ID	1
 
+/*
+ * Get bootloader hash
+ *
+ * [out]    memref[0]:   bootloader hash
+ */
+
+#define PTA_BOOT_DATA_BOOTLOADER_HASH 2
+
 #endif /* __PTA_BOOT_LOG_H */
