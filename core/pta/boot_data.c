@@ -10,6 +10,10 @@
 #include <trace.h>
 #include <utee_defines.h>
 #include <bootdata/bootdata.h>
+#include <crypto/crypto.h>
+#include <string.h>
+
+#define DEBUG 0
 
 
 static TEE_Result pta_get_device_id(uint32_t param_types,
@@ -28,24 +32,67 @@ static TEE_Result pta_get_device_id(uint32_t param_types,
 		return res;
 	}
 	memcpy(&params[0].memref.buffer, huk.data, HW_UNIQUE_KEY_LENGTH);
-	for (int i = 0; i < HW_UNIQUE_KEY_LENGTH; i++)
-	{
-	    if (i > 0) DMSG(":");
-	    DMSG("%02X", huk.data[i]);
-	}
+	params[0].memref.size = HW_UNIQUE_KEY_LENGTH;
 
+	if(DEBUG)
+	{
+		for (int i = 0; i < HW_UNIQUE_KEY_LENGTH; i++)
+		{
+		    DMSG("%02X", huk.data[i]);
+		}
+
+	}
 	return res;
 }
-
-#include <mbedtls/pk.h>
-#include <mbedtls/md.h>
-#include <string.h>
 
 static TEE_Result pta_get_bootloader_hash(uint32_t param_types,
 		TEE_Param params[TEE_NUM_PARAMS])
 {
 	DMSG("Start pta_get_bootloader_hash in BOOT_DATA_PTA");
-	params[0].value.a = 11;
+	
+	if (params[1].memref.size < 32)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+
+	// Get Bootloader data
+	vaddr_t src_vaddr = 0;
+	TEE_Result res = TEE_SUCCESS;
+
+	src_vaddr = (vaddr_t)phys_to_virt(CFG_TEE_BOOT_DATA_START, MEM_AREA_IO_SEC, BOOT_DATA_HEADER_SIZE);
+
+	if (!src_vaddr) {
+		EMSG("Not enough memory mapped");
+		return TEE_ERROR_OUT_OF_MEMORY;
+	}
+
+	// TEST !!!
+	uint8_t bootloader_data[512];
+	size_t bootloader_data_size = 512;
+	for (size_t i = 0; i < 12; i++)
+	{
+		bootloader_data[i] = i*2;
+	}
+	bootloader_data_size = sizeof(bootloader_data);
+	DMSG("DATA SIZE = %d", bootloader_data_size);
+	
+
+	uint8_t bootloader_hash[TEE_SHA256_HASH_SIZE];
+	res = hash_sha512_256_compute(bootloader_hash, &bootloader_data, bootloader_data_size);
+	if(res != TEE_SUCCESS)
+	{
+		return res;
+	}
+
+	if(DEBUG)
+	{
+		DMSG("HASH VALUE:");
+		for (size_t i = 0; i < TEE_SHA256_HASH_SIZE; i++)
+		{
+			DMSG("%02x", bootloader_hash[i]);
+		}
+	}
+	memcpy(params[1].memref.buffer, bootloader_hash, TEE_SHA256_HASH_SIZE);
+	params[1].memref.size = TEE_SHA256_HASH_SIZE;
 
 	return TEE_SUCCESS;
 }
