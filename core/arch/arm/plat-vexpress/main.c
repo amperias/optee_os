@@ -51,6 +51,14 @@ register_ddr(DRAM1_BASE, DRAM1_SIZE);
 
 #ifdef GIC_BASE
 
+#if defined(PLATFORM_FLAVOR_qemu_virt)
+#ifdef CFG_BOOT_DATA_PTA
+register_phys_mem(MEM_AREA_IO_SEC,
+                  CFG_TEE_BOOT_DATA_START, CFG_TEE_BOOT_DATA_SIZE);
+
+#endif // CFG_BOOT_DATA_PTA
+#endif
+
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, GICD_BASE, GIC_DIST_REG_SIZE);
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, GICC_BASE, GIC_DIST_REG_SIZE);
 
@@ -85,8 +93,6 @@ void console_init(void)
 	pl011_init(&console_data, CONSOLE_UART_BASE, CONSOLE_UART_CLK_IN_HZ,
 		   CONSOLE_BAUDRATE);
 	register_serial_console(&console_data.chip);
-
-	boot_data_init(CFG_TEE_BOOT_DATA_START, CFG_TEE_BOOT_DATA_SIZE);
 }
 
 #if defined(IT_CONSOLE_UART) && !defined(CFG_VIRTUALIZATION) && \

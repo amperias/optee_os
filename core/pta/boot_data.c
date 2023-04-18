@@ -2,9 +2,10 @@
 #include <kernel/pseudo_ta.h>
 #include <mm/core_memprot.h>
 #include <mm/core_mmu.h>
+#include <mm/tee_pager.h>
+#include <mm/tee_mm.h>
 #include <string.h>
 #include <trace.h>
-#include <pta_boot_data.h>
 #include <kernel/huk_subkey.h>
 #include <kernel/tee_common_otp.h>
 #include <trace.h>
@@ -12,8 +13,13 @@
 #include <bootdata/bootdata.h>
 #include <crypto/crypto.h>
 #include <string.h>
+#include <tee/tee_cryp_utl.h>
+
+#include <pta_boot_data.h>
 
 #define DEBUG 0
+#define SHA1_HASH_SIZE                  20 
+#define SHA256_HASH_SIZE                32
 
 
 static TEE_Result pta_get_device_id(uint32_t param_types,
@@ -45,56 +51,47 @@ static TEE_Result pta_get_device_id(uint32_t param_types,
 	return res;
 }
 
-static TEE_Result pta_get_bootloader_hash(uint32_t param_types,
+static TEE_Result pta_get_kernel_hash(uint32_t param_types,
 		TEE_Param params[TEE_NUM_PARAMS])
 {
-	DMSG("Start pta_get_bootloader_hash in BOOT_DATA_PTA");
-	
-	if (params[1].memref.size < 32)
-		return TEE_ERROR_BAD_PARAMETERS;
-
-
-	// Get Bootloader data
-	vaddr_t src_vaddr = 0;
 	TEE_Result res = TEE_SUCCESS;
+	vaddr_t src_vaddr = 0;
 
-	src_vaddr = (vaddr_t)phys_to_virt(CFG_TEE_BOOT_DATA_START, MEM_AREA_IO_SEC, BOOT_DATA_HEADER_SIZE);
+	// Get virtual address from the physical kernel address
+	src_vaddr = (vaddr_t)phys_to_virt(CFG_TEE_BOOT_DATA_START, MEM_AREA_IO_SEC, 2 + BOOT_DATA_HEADER_SIZE);
+	DMSG("Physical = %lX, Virtual = %lX\n", (unsigned long)CFG_TEE_BOOT_DATA_START, (unsigned long)src_vaddr);
 
 	if (!src_vaddr) {
 		EMSG("Not enough memory mapped");
 		return TEE_ERROR_OUT_OF_MEMORY;
 	}
 
-	// TEST !!!
-	uint8_t bootloader_data[512];
-	size_t bootloader_data_size = 512;
-	for (size_t i = 0; i < 12; i++)
+	uint8_t kernel_hash[SHA1_HASH_SIZE+ 1];
+	res = tee_hash_createdigest(TEE_ALG_SHA1, (char*)src_vaddr, BOOT_DATA_HEADER_SIZE, kernel_hash, SHA1_HASH_SIZE);
+	if (res != TEE_SUCCESS)
 	{
-		bootloader_data[i] = i*2;
+		DMSG("tee_hash_createdigest(TEE_ALG_SHA1) Fail\n");
+		goto EXIT;
 	}
-	bootloader_data_size = sizeof(bootloader_data);
-	DMSG("DATA SIZE = %d", bootloader_data_size);
-	
-
-	uint8_t bootloader_hash[TEE_SHA256_HASH_SIZE];
-	res = hash_sha512_256_compute(bootloader_hash, &bootloader_data, bootloader_data_size);
-	if(res != TEE_SUCCESS)
-	{
-		return res;
+	else {
+		DMSG("tee_hash_createdigest(TEE_ALG_SHA1) Works\n");
 	}
 
 	if(DEBUG)
 	{
 		DMSG("HASH VALUE:");
-		for (size_t i = 0; i < TEE_SHA256_HASH_SIZE; i++)
+		for (size_t i = 0; i < SHA1_HASH_SIZE; i++)
 		{
-			DMSG("%02x", bootloader_hash[i]);
+			DMSG("%02x", kernel_hash[i]);
 		}
 	}
-	memcpy(params[1].memref.buffer, bootloader_hash, TEE_SHA256_HASH_SIZE);
-	params[1].memref.size = TEE_SHA256_HASH_SIZE;
 
-	return TEE_SUCCESS;
+	memcpy(params[1].memref.buffer, kernel_hash, SHA1_HASH_SIZE);
+	params[1].memref.size = SHA1_HASH_SIZE;
+
+EXIT:
+
+	return res;
 }
 
 static TEE_Result invoke_command(void *session_context __unused,
@@ -110,8 +107,8 @@ static TEE_Result invoke_command(void *session_context __unused,
 		case PTA_BOOT_DATA_DEVICE_ID:
 			res = pta_get_device_id(param_types, params);
 			break;
-		case PTA_BOOT_DATA_BOOTLOADER_HASH:
-			res = pta_get_bootloader_hash(param_types, params);
+		case PTA_BOOT_DATA_KERNEL_HASH:
+			res = pta_get_kernel_hash(param_types, params);
 			break;
 		default:
 			EMSG("cmd: %d Not supported %s", cmd_id, PTA_BOOT_DATA_NAME);

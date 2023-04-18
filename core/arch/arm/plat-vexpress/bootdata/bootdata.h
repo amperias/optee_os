@@ -22,5 +22,6 @@ struct bootdata {
 };
 
 void boot_data_init(uintptr_t pa_base, uint32_t size);
+void boot_data_putchar(char ch);
 
 #endif /* BOOT_DATA_H */
